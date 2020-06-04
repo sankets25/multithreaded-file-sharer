@@ -13,12 +13,13 @@ import java.util.List;
 
 public class Server extends JFrame {
 
-    private static JPanel serverPanel;
-    private static JTextArea txtConnectedClients;
-    private static JButton btnStopServer;
-    private static JButton btnStartServer;
+    private JPanel serverPanel;
+    private JTextArea txtConnectedClients;
+    private JButton btnStopServer;
+    private JButton btnStartServer;
+    private JTextArea txtServerLog;
+    private JButton btnRefreshList;
 
-    static JTextArea txtServerLog;
     static ArrayList<ClientHandler> ar = new ArrayList<>();
     static List<String> connectedClients = new ArrayList<>();
     static int i = 0;
@@ -67,6 +68,15 @@ public class Server extends JFrame {
                 }).start();
             }
         });
+
+        btnRefreshList.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+
+                printList();
+            }
+        });
+
         btnStopServer.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -86,7 +96,7 @@ public class Server extends JFrame {
 
     private void connectToServer() throws IOException {
 
-        ServerSocket serverSocket = new ServerSocket(313131);
+        ServerSocket serverSocket = new ServerSocket(31313);
 
         txtServerLog.append("Server is listening on port 313131...\n\n");
 
@@ -99,14 +109,14 @@ public class Server extends JFrame {
                 /*Accepting newly connected socket connections*/
                 socket = serverSocket.accept();
 
-                ObjectInputStream ois = new ObjectInputStream(socket.getInputStream());
-                ObjectOutputStream oips = new ObjectOutputStream(socket.getOutputStream());
+                ObjectInputStream oips = new ObjectInputStream(socket.getInputStream());
+                ObjectOutputStream oops = new ObjectOutputStream(socket.getOutputStream());
 
-                Message message = (Message) ois.readObject();
+                Message message = (Message) oips.readObject();
                 connectedClients.add(message.getSender());
                 printList();
 
-                ClientHandler clientHandler = new ClientHandler(ois, oips, socket, message.getSender());
+                ClientHandler clientHandler = new ClientHandler(oips, oops, socket, message.getSender());
                 Thread thread = new Thread(clientHandler);
 
                 ar.add(clientHandler);
@@ -116,6 +126,7 @@ public class Server extends JFrame {
             } catch (Exception e) {
 
                 /*Close the socket if something goes wrong*/
+                assert socket != null;
                 socket.close();
 
                 /*Print error log to the console*/
@@ -124,11 +135,12 @@ public class Server extends JFrame {
         }
     }
 
-    public static void printList() {
+    public void printList() {
 
         if(SwingUtilities.isEventDispatchThread()) {
 
             txtConnectedClients.setText(String.join("\n", connectedClients));
+
         } else {
 
             SwingUtilities.invokeLater(new Runnable() {
@@ -144,16 +156,16 @@ public class Server extends JFrame {
 
 class ClientHandler implements Runnable {
 
-    private ObjectInputStream ois;
-    private ObjectOutputStream oips;
+    private ObjectInputStream oips;
+    private ObjectOutputStream oops;
     private Socket socket;
     private String clientName;
     private boolean threadState = true;
 
-    public ClientHandler(ObjectInputStream ois, ObjectOutputStream oips, Socket socket, String clientName) {
+    public ClientHandler(ObjectInputStream oips, ObjectOutputStream oops, Socket socket, String clientName) {
 
-        this.ois = ois;
         this.oips = oips;
+        this.oops = oops;
         this.socket = socket;
         this.clientName = clientName;
     }
@@ -168,7 +180,7 @@ class ClientHandler implements Runnable {
 
             try {
 
-                message = (Message) ois.readObject();
+                message = (Message) oips.readObject();
 
                 senderName = message.getSender();
                 byte[] file = message.getFile();
@@ -177,21 +189,21 @@ class ClientHandler implements Runnable {
                 int index = absFileName.lastIndexOf("\\");
                 String fileName = absFileName.substring(index + 1);
 
-                Server.txtServerLog.append("A new file, " + fileName + " from " + senderName + " is received...\n");
-
                 try(FileOutputStream fileOutputStream = new FileOutputStream("serverDirectory/" + fileName)) {
 
                     fileOutputStream.write(file);
 
                     for(ClientHandler client: Server.ar) {
 
-                        if(client.clientName != senderName) {
+                        if(!client.clientName.equals(senderName)) {
 
-                            byte outFile[] = Files.readAllBytes(Paths.get("serverDirectory/" + fileName));
+                            byte[] outFile = Files.readAllBytes(Paths.get("serverDirectory/" + fileName));
                             Message newMessage = new Message();
                             newMessage.setSender(senderName);
                             newMessage.setFileName(fileName);
                             newMessage.setFile(outFile);
+
+                            client.oops.writeObject(newMessage);
                         }
                     }
                 } catch (IOException e) {
@@ -202,9 +214,6 @@ class ClientHandler implements Runnable {
             } catch (Exception e) {
 
                 Server.connectedClients.remove(clientName);
-                Server.printList();
-
-                Server.i--;
 
                 stopThread();
 
