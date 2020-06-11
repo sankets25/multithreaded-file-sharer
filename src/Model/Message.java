@@ -7,6 +7,8 @@ public class Message implements Serializable {
     private String sender;
     private byte[] file;
     private String fileName;
+    private String instruction;
+    private boolean vote;
 
     public String getSender() {
         return sender;
@@ -30,5 +32,21 @@ public class Message implements Serializable {
 
     public void setFileName(String fileName) {
         this.fileName = fileName;
+    }
+
+    public String getInstruction() {
+        return instruction;
+    }
+
+    public void setInstruction(String instruction) {
+        this.instruction = instruction;
+    }
+
+    public boolean isVote() {
+        return vote;
+    }
+
+    public void setVote(boolean vote) {
+        this.vote = vote;
     }
 }
