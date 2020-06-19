@@ -42,7 +42,7 @@ public class Message implements Serializable {
         this.instruction = instruction;
     }
 
-    public boolean isVote() {
+    public boolean getVote() {
         return vote;
     }
 

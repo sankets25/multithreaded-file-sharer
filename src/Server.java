@@ -23,6 +23,9 @@ public class Server extends JFrame {
     static ArrayList<ClientHandler> ar = new ArrayList<>();
     static List<String> connectedClients = new ArrayList<>();
     static int i = 0;
+    static int voteCount = 0;
+    static String fileToBeDeleted = "";
+    static String originalSender = "";
 
     public static void main(String[] args) {
 
@@ -183,32 +186,101 @@ class ClientHandler implements Runnable {
                 message = (Message) oips.readObject();
 
                 senderName = message.getSender();
-                byte[] file = message.getFile();
                 String absFileName = message.getFileName();
 
                 int index = absFileName.lastIndexOf("\\");
                 String fileName = absFileName.substring(index + 1);
 
-                try(FileOutputStream fileOutputStream = new FileOutputStream("serverDirectory/" + fileName)) {
+                if(message.getFile() != null) {
 
-                    fileOutputStream.write(file);
+                    byte[] file = message.getFile();
+
+                    System.out.println("A new file "+ fileName + " from " + senderName + " is received...");
+
+                    try(FileOutputStream fileOutputStream = new FileOutputStream("serverDirectory/" + fileName)) {
+
+                        fileOutputStream.write(file);
+
+                        for(ClientHandler client: Server.ar) {
+
+                            if(!client.clientName.equals(senderName)) {
+
+                                byte[] outFile = Files.readAllBytes(Paths.get("serverDirectory/" + fileName));
+                                Message newMessage = new Message();
+                                newMessage.setSender(senderName);
+                                newMessage.setFileName(fileName);
+                                newMessage.setFile(outFile);
+
+                                client.oops.writeObject(newMessage);
+                            }
+                        }
+                    } catch (IOException e) {
+
+                        e.printStackTrace();
+                    }
+                } else if(message.getInstruction().equals("VOTE")) {
+
+                    Server.fileToBeDeleted = fileName;
+                    Server.originalSender = senderName;
+
+                    if(message.getVote()) {
+
+                        Server.voteCount++;
+                    }
 
                     for(ClientHandler client: Server.ar) {
 
-                        if(!client.clientName.equals(senderName)) {
+                        if(client.clientName != Server.originalSender) {
 
-                            byte[] outFile = Files.readAllBytes(Paths.get("serverDirectory/" + fileName));
-                            Message newMessage = new Message();
-                            newMessage.setSender(senderName);
-                            newMessage.setFileName(fileName);
-                            newMessage.setFile(outFile);
-
-                            client.oops.writeObject(newMessage);
+                            Message replyMessage = new Message();
+                            replyMessage.setSender(Server.originalSender);
+                            replyMessage.setFileName(Server.fileToBeDeleted);
+                            replyMessage.setInstruction("VOTE");
+                            client.oops.writeObject(replyMessage);
                         }
                     }
-                } catch (IOException e) {
+                } else if(message.getInstruction().equals("REPLY")) {
 
-                    e.printStackTrace();
+                    if(message.getVote()) {
+
+                        Server.voteCount++;
+
+                        if(Server.voteCount == Server.ar.size()) {
+
+                            for(ClientHandler client: Server.ar) {
+
+                                if(client.clientName != Server.originalSender) {
+
+                                    Message replyMessage = new Message();
+                                    replyMessage.setSender(Server.originalSender);
+                                    replyMessage.setFileName(Server.fileToBeDeleted);
+                                    replyMessage.setInstruction("DELETE");
+                                    client.oops.writeObject(replyMessage);
+                                }
+                            }
+
+                            Server.voteCount = 0;
+                        }
+                    }
+                } else {
+
+                    Thread.sleep(3000);
+
+                    if(Server.voteCount != Server.ar.size()) {
+
+                        for(ClientHandler client: Server.ar) {
+
+                            byte b[] = Files.readAllBytes(Paths.get("ServerDirectory/" + Server.fileToBeDeleted));
+                            Message replyMessage = new Message();
+                            replyMessage.setSender(Server.originalSender);
+                            replyMessage.setFileName(Server.fileToBeDeleted);
+                            replyMessage.setInstruction("ROLLBACK");
+                            replyMessage.setFile(b);
+                            client.oops.writeObject(replyMessage);
+                        }
+
+                        Server.voteCount = 0;
+                    }
                 }
 
             } catch (Exception e) {
