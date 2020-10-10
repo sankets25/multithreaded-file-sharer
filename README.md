@@ -1,6 +1,6 @@
 # Multi-threaded file sharer
 
-A client-server architecture based multi-threaded file sharer coded in Java.
+A client-server architecture based multi-threaded file sharing distributed system in Java.
 
 • Client chooses a unique username  
 • Server forks a thread for every client which connects  
