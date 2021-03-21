@@ -8,6 +8,7 @@ import java.io.*;
 import java.net.Socket;
 import java.nio.file.*;
 
+
 public class Client extends JFrame {
 
     private JTextArea txtClientLog;
